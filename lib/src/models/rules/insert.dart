@@ -574,6 +574,9 @@ class PreserveInlineStylesRule extends InsertRule {
     }
 
     final attributes = prev.attributes;
+    if(attributes!=null && (attributes.containsKey(Attribute.list.key)||attributes.containsKey(Attribute.codeBlock.key)||attributes.containsKey(Attribute.blockQuote.key))){
+      return null;
+    }
     final text = data;
     if (attributes == null || !attributes.containsKey(Attribute.link.key)) {
       return Delta()
