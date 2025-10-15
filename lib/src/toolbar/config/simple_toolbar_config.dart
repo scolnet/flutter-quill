@@ -107,6 +107,7 @@ class QuillSimpleToolbarConfig {
     this.showSearchButton = true,
     this.showSubscript = true,
     this.showSuperscript = true,
+    this.showCallout = false,
     @experimental this.showClipboardCut = false,
     @experimental this.showClipboardCopy = false,
     @experimental this.showClipboardPaste = false,
@@ -179,6 +180,7 @@ class QuillSimpleToolbarConfig {
   final bool showSearchButton;
   final bool showSubscript;
   final bool showSuperscript;
+  final bool showCallout;
   @experimental
   final bool showClipboardCut;
   @experimental

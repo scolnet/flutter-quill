@@ -8,6 +8,7 @@ import 'embed/embed_button_builder.dart';
 import 'simple_toolbar.dart';
 
 export 'buttons/alignment/select_alignment_button.dart';
+export 'buttons/callout_button.dart';
 export 'buttons/clear_format_button.dart';
 export 'buttons/clipboard_button.dart';
 export 'buttons/color/color_button.dart';

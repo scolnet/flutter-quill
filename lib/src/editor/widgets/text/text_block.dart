@@ -10,6 +10,8 @@ import '../../../document/attribute.dart';
 import '../../../document/nodes/block.dart';
 import '../../../document/nodes/line.dart';
 import '../../../editor_toolbar_shared/color.dart';
+import '../../config/block_decoration_resolver.dart';
+import '../../config/editor_config.dart';
 import '../../editor.dart';
 import '../../embed/embed_editor_builder.dart';
 import '../../raw_editor/builders/leading_block_builder.dart';
@@ -84,6 +86,7 @@ class EditableTextBlock extends StatelessWidget {
     this.customStyleBuilder,
     this.customLinkPrefixes = const <String>[],
     this.customLeadingBlockBuilder,
+    this.blockDecorationResolver,
     super.key,
   });
 
@@ -114,26 +117,54 @@ class EditableTextBlock extends StatelessWidget {
   final bool? checkBoxReadOnly;
   final List<String> customLinkPrefixes;
   final TextRange composingRange;
+  final BlockDecorationResolver? blockDecorationResolver;
 
   @override
   Widget build(BuildContext context) {
     assert(debugCheckHasMediaQuery(context));
 
     final defaultStyles = QuillStyles.getStyles(context, false);
+
+    final resolved =
+        blockDecorationResolver?.call(context, block, defaultStyles) ??
+            _resolveBlockDecorationDefault(context, block, defaultStyles);
+
     return _EditableBlock(
       block: block,
       textDirection: textDirection,
       horizontalSpacing: horizontalSpacing,
       verticalSpacing: verticalSpacing,
       scrollBottomInset: scrollBottomInset,
-      decoration:
-          _getDecorationForBlock(block, defaultStyles) ?? const BoxDecoration(),
-      contentPadding: contentPadding,
+      decoration: resolved.decoration,
+      contentPadding: resolved.contentPadding,
+      headerText: resolved.header?.text,
+      headerTextStyle: resolved.header?.textStyle,
+      headerPadding: resolved.header?.padding,
+      headerIcon: resolved.header?.icon,
+      headerIconColor: resolved.header?.iconColor,
+      headerIconGap: resolved.header?.iconGap ?? 5.0,
       children: _buildChildren(
         context,
         indentLevelCounts,
         clearIndents,
       ),
+    );
+  }
+
+  // ===== Fallback stock (blockquote / code-block / normal) =====
+  BlockResolvedDecoration _resolveBlockDecorationDefault(
+    BuildContext context,
+    Block node,
+    DefaultStyles? styles,
+  ) {
+    // Default padding = aucun extra
+    EdgeInsets contentPad = contentPadding ?? EdgeInsets.zero;
+    BoxDecoration deco =
+        _getDecorationForBlock(node, styles) ?? const BoxDecoration();
+
+    return BlockResolvedDecoration(
+      decoration: deco,
+      contentPadding: contentPad, // null par défaut
     );
   }
 
@@ -176,40 +207,40 @@ class EditableTextBlock extends StatelessWidget {
     for (final line in Iterable.castFrom<dynamic, Line>(block.children)) {
       index++;
       final editableTextLine = EditableTextLine(
-        line,
-        _buildLeading(
-          context: context,
-          line: line,
-          index: index,
-          indentLevelCounts: indentLevelCounts,
-          count: count,
-        ),
-        TextLine(
-          line: line,
-          textDirection: textDirection,
-          embedBuilder: embedBuilder,
-          textSpanBuilder: textSpanBuilder,
-          customStyleBuilder: customStyleBuilder,
-          styles: styles!,
-          readOnly: readOnly,
-          controller: controller,
-          linkActionPicker: linkActionPicker,
-          onLaunchUrl: onLaunchUrl,
-          customLinkPrefixes: customLinkPrefixes,
-          customRecognizerBuilder: customRecognizerBuilder,
-          composingRange: composingRange,
-        ),
-        indentWidthBuilder(block, context, count, numberPointWidthBuilder),
-        _getSpacingForLine(line, index, count, defaultStyles),
-        textDirection,
-        textSelection,
-        color,
-        enableInteractiveSelection,
-        hasFocus,
-        MediaQuery.devicePixelRatioOf(context),
-        cursorCont,
-        styles!.inlineCode!,
-        null);
+          line,
+          _buildLeading(
+            context: context,
+            line: line,
+            index: index,
+            indentLevelCounts: indentLevelCounts,
+            count: count,
+          ),
+          TextLine(
+            line: line,
+            textDirection: textDirection,
+            embedBuilder: embedBuilder,
+            textSpanBuilder: textSpanBuilder,
+            customStyleBuilder: customStyleBuilder,
+            styles: styles!,
+            readOnly: readOnly,
+            controller: controller,
+            linkActionPicker: linkActionPicker,
+            onLaunchUrl: onLaunchUrl,
+            customLinkPrefixes: customLinkPrefixes,
+            customRecognizerBuilder: customRecognizerBuilder,
+            composingRange: composingRange,
+          ),
+          indentWidthBuilder(block, context, count, numberPointWidthBuilder),
+          _getSpacingForLine(line, index, count, defaultStyles),
+          textDirection,
+          textSelection,
+          color,
+          enableInteractiveSelection,
+          hasFocus,
+          MediaQuery.devicePixelRatioOf(context),
+          cursorCont,
+          styles!.inlineCode!,
+          null);
       final nodeTextDirection = getDirectionOfNode(line, textDirection);
       children.add(
         Directionality(
@@ -429,28 +460,46 @@ class RenderEditableTextBlock extends RenderEditableContainerBox
     required Decoration decoration,
     super.children,
     EdgeInsets contentPadding = EdgeInsets.zero,
+    String? headerText,
+    TextStyle headerTextStyle =
+        const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+    EdgeInsets headerPadding = EdgeInsets.zero,
+    IconData? headerIcon,
+    Color? headerIconColor,
+    double headerIconGap = 5,
   })  : _decoration = decoration,
         _configuration = ImageConfiguration(textDirection: textDirection),
         _savedPadding = padding,
-        _contentPadding = contentPadding,
+        _contentPaddingBase = contentPadding,
+        _headerText = headerText,
+        _headerTextStyle = headerTextStyle,
+        _headerPadding = headerPadding,
+        _headerIcon = headerIcon,
+        _headerIconColor = headerIconColor,
+        _headerIconGap = headerIconGap,
         super(
           container: block,
           padding: padding.add(contentPadding),
-        );
+        ) {
+    _recomputeEffectivePadding();
+  }
 
-  EdgeInsetsGeometry _savedPadding;
-  EdgeInsets _contentPadding;
+  EdgeInsetsGeometry _savedPadding; // padding externe (Geometry)
+  EdgeInsets _contentPaddingBase; // TON contentPadding d’origine
+  EdgeInsets _contentPaddingEffective = EdgeInsets.zero; // base + réserve
+  double _headerReserveTop = 0;
 
   set contentPadding(EdgeInsets value) {
-    if (_contentPadding == value) return;
-    _contentPadding = value;
-    super.setPadding(_savedPadding.add(_contentPadding));
+    if (_contentPaddingBase == value) return;
+    _contentPaddingBase = value;
+    _recomputeEffectivePadding();
   }
 
   @override
   void setPadding(EdgeInsetsGeometry value) {
-    super.setPadding(value.add(_contentPadding));
+    if (_savedPadding == value) return;
     _savedPadding = value;
+    _recomputeEffectivePadding();
   }
 
   BoxPainter? _painter;
@@ -473,6 +522,169 @@ class RenderEditableTextBlock extends RenderEditableContainerBox
     if (value == _configuration) return;
     _configuration = value;
     markNeedsPaint();
+  }
+
+  // ---------- HEADER ----------
+  String? _headerText;
+  TextStyle _headerTextStyle;
+  EdgeInsets _headerPadding;
+  IconData? _headerIcon;
+  Color? _headerIconColor;
+  double _headerIconGap;
+
+  set headerText(String? v) {
+    if (_headerText == v) return;
+    _headerText = v;
+    _recomputeEffectivePadding();
+    markNeedsPaint();
+  }
+
+  set headerTextStyle(TextStyle v) {
+    if (_headerTextStyle == v) return;
+    _headerTextStyle = v;
+    _recomputeEffectivePadding();
+    markNeedsPaint();
+  }
+
+  set headerPadding(EdgeInsets v) {
+    if (_headerPadding == v) return;
+    _headerPadding = v;
+    _recomputeEffectivePadding();
+    markNeedsPaint();
+  }
+
+  set headerIcon(IconData? v) {
+    if (_headerIcon == v) return;
+    _headerIcon = v;
+    markNeedsPaint();
+  }
+
+  set headerIconColor(Color? v) {
+    if (_headerIconColor == v) return;
+    _headerIconColor = v;
+    markNeedsPaint();
+  }
+
+  set headerIconGap(double v) {
+    if (_headerIconGap == v) return;
+    _headerIconGap = v;
+    markNeedsPaint();
+  }
+
+  double _computeHeaderReserve() {
+    if (_headerText == null || _headerText!.isEmpty) {
+      // même si pas de titre, si on veut afficher juste l’icône, on réserve quand même une ligne
+      if (_headerIcon != null) {
+        final fs = _headerTextStyle.fontSize ?? 14.0;
+        return fs * 1.25 + _headerPadding.vertical;
+      }
+      return 0.0;
+    }
+    final fs = _headerTextStyle.fontSize ?? 14.0;
+    return fs * 1.25 + _headerPadding.vertical;
+  }
+
+  void _recomputeEffectivePadding() {
+    _headerReserveTop = _computeHeaderReserve();
+
+    // Ajoute la réserve en haut au contentPadding (top)
+    _contentPaddingEffective = _contentPaddingBase.copyWith(
+      top: _contentPaddingBase.top + _headerReserveTop,
+    );
+
+    // Informe le parent : savedPadding + contentPaddingEffectif
+    super.setPadding(_savedPadding.add(_contentPaddingEffective));
+    markNeedsLayout();
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    _paintDecoration(context, offset);
+    _paintHeader(context, offset);
+    defaultPaint(context, offset);
+  }
+
+  void _paintDecoration(PaintingContext context, Offset offset) {
+    _painter ??= _decoration.createBoxPainter(markNeedsPaint);
+
+    // resolvedPadding inclut savedPadding + contentPaddingEffectif
+    final decorationPadding = resolvedPadding! - _contentPaddingEffective;
+    final filledConfiguration =
+        configuration.copyWith(size: decorationPadding.deflateSize(size));
+    final decorationOffset =
+        offset.translate(decorationPadding.left, decorationPadding.top);
+
+    final save = context.canvas.getSaveCount();
+    _painter!.paint(context.canvas, decorationOffset, filledConfiguration);
+    if (save != context.canvas.getSaveCount()) {
+      throw StateError('Decoration painter save/restore mismatch.');
+    }
+    if (decoration.isComplex) context.setIsComplexHint();
+  }
+
+  void _paintHeader(PaintingContext context, Offset offset) {
+    // Rien à peindre si pas d’icône ET pas de texte
+    if ((_headerText == null || _headerText!.isEmpty) && _headerIcon == null) {
+      return;
+    }
+
+    final saved = _savedPadding.resolve(textDirection);
+    double x = saved.left + _contentPaddingBase.left + _headerPadding.left;
+    final double y = saved.top + _contentPaddingBase.top + _headerPadding.top;
+
+    final double totalW = size.width;
+    final double maxHeaderW = (totalW -
+            saved.left -
+            saved.right -
+            _contentPaddingBase.left -
+            _contentPaddingBase.right -
+            _headerPadding.horizontal)
+        .clamp(0.0, double.infinity);
+
+    final Canvas canvas = context.canvas;
+
+    double cursorX = x;
+
+    // 1) Prépare le painter du titre (si texte)
+    TextPainter? titlePainter;
+    double lineHeight;
+    final double fs = _headerTextStyle.fontSize ?? 16;
+    if (_headerText != null && _headerText!.isNotEmpty) {
+      titlePainter = TextPainter(
+        text: TextSpan(text: _headerText!, style: _headerTextStyle),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '…',
+      )..layout(minWidth: 0, maxWidth: maxHeaderW);
+      lineHeight = titlePainter.height;
+    } else {
+      // pas de texte : hauteur de ligne “théorique” basée sur la font
+      lineHeight = fs * 1.25;
+    }
+    // ---- Icône avant le texte (optionnelle) ----
+    if (_headerIcon != null) {
+      final TextPainter iconPainter = TextPainter(
+        text: TextSpan(
+          text: String.fromCharCode(_headerIcon!.codePoint),
+          style: TextStyle(
+            fontFamily: _headerIcon!.fontFamily,
+            package: _headerIcon!.fontPackage,
+            fontSize: fs,
+            color: _headerIconColor ?? _headerTextStyle.color ?? Colors.grey,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout(minWidth: 0, maxWidth: maxHeaderW);
+
+      final double iconY = y + (lineHeight - iconPainter.height) / 2.0;
+      iconPainter.paint(canvas, offset.translate(cursorX, iconY));
+      cursorX += iconPainter.width + _headerIconGap;
+    }
+
+    // 3) Titre (au top de la ligne)
+    if (titlePainter != null) {
+      titlePainter.paint(canvas, offset.translate(cursorX, y));
+    }
   }
 
   @override
@@ -661,35 +873,6 @@ class RenderEditableTextBlock extends RenderEditableContainerBox
   }
 
   @override
-  void paint(PaintingContext context, Offset offset) {
-    _paintDecoration(context, offset);
-    defaultPaint(context, offset);
-  }
-
-  void _paintDecoration(PaintingContext context, Offset offset) {
-    _painter ??= _decoration.createBoxPainter(markNeedsPaint);
-
-    final decorationPadding = resolvedPadding! - _contentPadding;
-
-    final filledConfiguration =
-        configuration.copyWith(size: decorationPadding.deflateSize(size));
-    final debugSaveCount = context.canvas.getSaveCount();
-
-    final decorationOffset =
-        offset.translate(decorationPadding.left, decorationPadding.top);
-    _painter!.paint(context.canvas, decorationOffset, filledConfiguration);
-    if (debugSaveCount != context.canvas.getSaveCount()) {
-      throw StateError(
-        '${_decoration.runtimeType} painter had mismatching save and  '
-        'restore calls.',
-      );
-    }
-    if (decoration.isComplex) {
-      context.setIsComplexHint();
-    }
-  }
-
-  @override
   bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
     return defaultHitTestChildren(result, position: position);
   }
@@ -727,15 +910,24 @@ class RenderEditableTextBlock extends RenderEditableContainerBox
 }
 
 class _EditableBlock extends MultiChildRenderObjectWidget {
-  const _EditableBlock(
-      {required this.block,
-      required this.textDirection,
-      required this.horizontalSpacing,
-      required this.verticalSpacing,
-      required this.scrollBottomInset,
-      required this.decoration,
-      required this.contentPadding,
-      required super.children});
+  const _EditableBlock({
+    required this.block,
+    required this.textDirection,
+    required this.horizontalSpacing,
+    required this.verticalSpacing,
+    required this.scrollBottomInset,
+    required this.decoration,
+    required this.contentPadding,
+    required super.children,
+    this.headerText,
+    this.headerTextStyle,
+    this.headerPadding,
+    this.headerAccent,
+    this.headerAccentBarWidth,
+    this.headerIcon,
+    this.headerIconColor,
+    this.headerIconGap,
+  });
 
   final Block block;
   final TextDirection textDirection;
@@ -744,6 +936,14 @@ class _EditableBlock extends MultiChildRenderObjectWidget {
   final double scrollBottomInset;
   final Decoration decoration;
   final EdgeInsets? contentPadding;
+  final String? headerText;
+  final TextStyle? headerTextStyle;
+  final EdgeInsets? headerPadding;
+  final Color? headerAccent;
+  final double? headerAccentBarWidth;
+  final IconData? headerIcon;
+  final Color? headerIconColor;
+  final double? headerIconGap;
 
   EdgeInsets get _padding => EdgeInsets.only(
       left: horizontalSpacing.left,
@@ -762,6 +962,13 @@ class _EditableBlock extends MultiChildRenderObjectWidget {
       scrollBottomInset: scrollBottomInset,
       decoration: decoration,
       contentPadding: _contentPadding,
+      headerText: headerText,
+      headerTextStyle: headerTextStyle ??
+          const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+      headerPadding: headerPadding ?? EdgeInsets.zero,
+      headerIcon: headerIcon,
+      headerIconColor: headerIconColor,
+      headerIconGap: headerIconGap ?? 5,
     );
   }
 
@@ -774,6 +981,13 @@ class _EditableBlock extends MultiChildRenderObjectWidget {
       ..scrollBottomInset = scrollBottomInset
       ..setPadding(_padding)
       ..decoration = decoration
-      ..contentPadding = _contentPadding;
+      ..contentPadding = _contentPadding
+      ..headerText = headerText
+      ..headerTextStyle = headerTextStyle ??
+          const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)
+      ..headerPadding = headerPadding ?? EdgeInsets.zero
+      ..headerIcon = headerIcon
+      ..headerIconColor = headerIconColor
+      ..headerIconGap = headerIconGap ?? 5;
   }
 }

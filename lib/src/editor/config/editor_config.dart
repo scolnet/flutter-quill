@@ -7,6 +7,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:meta/meta.dart' show experimental;
 
+import '../../document/nodes/block.dart';
 import '../../document/nodes/node.dart';
 import '../../toolbar/theme/quill_dialog_theme.dart';
 import '../embed/embed_editor_builder.dart';
@@ -19,10 +20,19 @@ import '../widgets/delegate.dart';
 import '../widgets/link.dart' hide linkPrefixes;
 import '../widgets/text/magnifier.dart';
 import '../widgets/text/utils/text_block_utils.dart';
+import 'block_decoration_resolver.dart';
 import 'search_config.dart';
 
 // IMPORTANT For project authors: The QuillEditorConfig.copyWith()
 // should be manually updated each time we add or remove a property
+
+/// Retourne null si le resolver ne gère pas ce block.
+typedef BlockDecorationResolver = BlockResolvedDecoration? Function(
+  BuildContext context,
+  Block block,
+  DefaultStyles? styles,
+);
+
 
 /// The configuration of the editor widget.
 @immutable
@@ -86,6 +96,7 @@ class QuillEditorConfig {
     this.readOnlyMouseCursor = SystemMouseCursors.text,
     this.onPerformAction,
     @experimental this.customLeadingBlockBuilder,
+    this.blockDecorationResolver,           
   });
 
   @experimental
@@ -471,6 +482,11 @@ class QuillEditorConfig {
   /// Called when a text input action is performed.
   final void Function(TextInputAction action)? onPerformAction;
 
+  /// Résolveur de style de bloc (permet d’overrider BoxDecoration/padding/spacing
+  /// d’un bloc selon ses attributs de *bloc*, ex: {"callout":"consigne"}).
+  final BlockDecorationResolver? blockDecorationResolver;
+
+
   // IMPORTANT For project authors: The copyWith()
   // should be manually updated each time we add or remove a property
 
@@ -531,6 +547,7 @@ class QuillEditorConfig {
     void Function()? onScribbleActivated,
     EdgeInsets? scribbleAreaInsets,
     void Function(TextInputAction action)? onPerformAction,
+    BlockDecorationResolver? blockDecorationResolver,
   }) {
     return QuillEditorConfig(
       customLeadingBlockBuilder:
@@ -600,6 +617,7 @@ class QuillEditorConfig {
       onScribbleActivated: onScribbleActivated ?? this.onScribbleActivated,
       scribbleAreaInsets: scribbleAreaInsets ?? this.scribbleAreaInsets,
       onPerformAction: onPerformAction ?? this.onPerformAction,
+      blockDecorationResolver: blockDecorationResolver ?? this.blockDecorationResolver,
     );
   }
 }

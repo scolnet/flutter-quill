@@ -26,6 +26,31 @@ class Attribute<T> {
   final AttributeScope scope;
   final T value;
 
+  static void registerCustom(
+    Attribute attr, {
+    bool addToBlockKeys = false,
+    bool addToBlockKeysExceptHeader = false,
+    bool addToExclusiveBlockKeys = false,
+  }) {
+    _registry[attr.key] = attr;
+    if (addToBlockKeys || attr.scope == AttributeScope.block) {
+      blockKeys.add(attr.key);
+    }
+    if (addToBlockKeysExceptHeader || attr.scope == AttributeScope.block) {
+      blockKeysExceptHeader.add(attr.key);
+    }
+    if (addToExclusiveBlockKeys) {
+      exclusiveBlockKeys.add(attr.key);
+    }
+  }
+
+  static void unregisterCustom(String key) {
+    _registry.remove(key);
+    blockKeys.remove(key);
+    blockKeysExceptHeader.remove(key);
+    exclusiveBlockKeys.remove(key);
+  }
+
   static final Map<String, Attribute> _registry = LinkedHashMap.of({
     Attribute.bold.key: Attribute.bold,
     Attribute.subscript.key: Attribute.subscript,
@@ -56,6 +81,7 @@ class Attribute<T> {
     Attribute.script.key: Attribute.script,
     Attribute.image.key: Attribute.image,
     Attribute.video.key: Attribute.video,
+    Attribute.callout.key: Attribute.callout,
   });
 
   static const BoldAttribute bold = BoldAttribute();
@@ -118,6 +144,8 @@ class Attribute<T> {
 
   static const VideoAttribute video = VideoAttribute(null);
 
+  static const CalloutAttribute callout = CalloutAttribute(null);
+
   static final registeredAttributeKeys = Set.unmodifiable(_registry.keys);
 
   static final inlineKeys = Set.unmodifiable(<String>{
@@ -153,6 +181,7 @@ class Attribute<T> {
     Attribute.indent.key,
     Attribute.direction.key,
     Attribute.lineHeight.key,
+    Attribute.callout.key,
   });
 
   static final Set<String> blockKeysExceptHeader = LinkedHashSet.of({
@@ -163,6 +192,7 @@ class Attribute<T> {
     Attribute.lineHeight.key,
     Attribute.indent.key,
     Attribute.direction.key,
+    Attribute.callout.key,
   });
 
   static final Set<String> exclusiveBlockKeys = LinkedHashSet.of({
@@ -170,6 +200,7 @@ class Attribute<T> {
     Attribute.list.key,
     Attribute.codeBlock.key,
     Attribute.blockQuote.key,
+    Attribute.callout.key,
   });
 
   static final Set<String> embedKeys = {
@@ -419,3 +450,8 @@ class VideoAttribute extends Attribute<String?> {
   const VideoAttribute(String? url)
       : super('video', AttributeScope.embeds, url);
 }
+
+class CalloutAttribute extends Attribute<String?> {
+  const CalloutAttribute(String? val) : super('callout', AttributeScope.block, val);
+}
+

@@ -1,6 +1,7 @@
 import 'package:meta/meta.dart';
 
 import 'base_button_options.dart';
+import 'buttons/callout_options.dart';
 import 'buttons/clear_format_options.dart';
 import 'buttons/clipboard_button_options.dart';
 import 'buttons/color_options.dart';
@@ -21,6 +22,7 @@ import 'buttons/toggle_style_options.dart';
 
 export '../buttons/search/search_dialog.dart';
 export 'base_button_options.dart';
+export 'buttons/callout_options.dart';
 export 'buttons/clear_format_options.dart';
 export 'buttons/clipboard_button_options.dart';
 export 'buttons/color_options.dart';
@@ -84,6 +86,7 @@ class QuillSimpleToolbarButtonOptions {
     this.clipboardCopy = const QuillToolbarClipboardButtonOptions(),
     @experimental
     this.clipboardPaste = const QuillToolbarClipboardButtonOptions(),
+    this.callout = const QuillToolbarCalloutButtonOptions(),
   });
 
   /// The base options that will apply to all buttons,
@@ -135,6 +138,8 @@ class QuillSimpleToolbarButtonOptions {
 
   final QuillToolbarLinkStyleButtonOptions linkStyle;
   final QuillToolbarLinkStyleButton2Options linkStyle2;
+
+  final QuillToolbarCalloutButtonOptions callout;
 
   final QuillToolbarCustomButtonOptions customButtons;
 }

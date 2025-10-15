@@ -247,6 +247,7 @@ class DefaultStyles {
     this.sizeLarge,
     this.sizeHuge,
     this.palette,
+    this.callout,
   });
 
   final DefaultTextBlockStyle? h1;
@@ -282,6 +283,7 @@ class DefaultStyles {
   final DefaultTextBlockStyle? indent;
   final DefaultTextBlockStyle? align;
   final DefaultTextBlockStyle? leading;
+  final DefaultTextBlockStyle? callout;
 
   /// Custom palette of colors
   final Map<String, Color>? palette;
@@ -527,6 +529,17 @@ class DefaultStyles {
       sizeSmall: const TextStyle(fontSize: 10),
       sizeLarge: const TextStyle(fontSize: 18),
       sizeHuge: const TextStyle(fontSize: 22),
+      callout: DefaultTextBlockStyle(
+        TextStyle(color: baseStyle.color!.withValues(alpha: 0.6)),
+        baseHorizontalSpacing,
+        baseVerticalSpacing,
+        const VerticalSpacing(6, 2),
+        BoxDecoration(
+          border: Border(
+            left: BorderSide(width: 4, color: Colors.grey.shade300),
+          ),
+        ),
+      ),
     );
   }
 
@@ -564,6 +577,7 @@ class DefaultStyles {
       sizeLarge: other.sizeLarge ?? sizeLarge,
       sizeHuge: other.sizeHuge ?? sizeHuge,
       palette: other.palette ?? palette,
+      callout: other.callout ?? callout
     );
   }
 }

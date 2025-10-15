@@ -228,7 +228,7 @@ class QuillEditorState extends State<QuillEditor>
     final theme = Theme.of(context);
     final selectionTheme =
         config.textSelectionThemeData ?? TextSelectionTheme.of(context);
-
+    
     TextSelectionControls textSelectionControls;
     bool paintCursorAboveText;
     bool cursorOpacityAnimates;
@@ -327,6 +327,7 @@ class QuillEditorState extends State<QuillEditor>
         readOnlyMouseCursor: config.readOnlyMouseCursor,
         textInputAction: config.textInputAction,
         onPerformAction: config.onPerformAction,
+        blockDecorationResolver: config.blockDecorationResolver,
       ),
     );
 

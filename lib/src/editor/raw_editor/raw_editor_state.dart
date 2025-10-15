@@ -621,6 +621,7 @@ class QuillRawEditorState extends EditorState
           customStyleBuilder: widget.config.customStyleBuilder,
           customLinkPrefixes: widget.config.customLinkPrefixes,
           composingRange: composingRange.value,
+          blockDecorationResolver: widget.config.blockDecorationResolver,
         );
         result.add(
           Directionality(
