@@ -1,10 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../document/attribute.dart';
 import '../../../l10n/extensions/localizations_ext.dart';
 import '../../base_button/base_value_button.dart';
-import '../../config/buttons/select_header_style_dropdown_button_options.dart';
 
+import '../../config/simple_toolbar_config.dart';
 import '../quill_icon_button.dart';
 
 typedef QuillToolbarSelectHeaderStyleDropdownBaseButton
@@ -36,7 +38,8 @@ class QuillToolbarSelectHeaderStyleDropdownButton
 }
 
 class _QuillToolbarSelectHeaderStyleDropdownButtonState
-    extends QuillToolbarSelectHeaderStyleDropdownBaseButtonsState {
+    extends QuillToolbarSelectHeaderStyleDropdownBaseButtonsState
+    with WidgetsBindingObserver {
   @override
   String get defaultTooltip => context.loc.headerStyle;
 
@@ -45,17 +48,43 @@ class _QuillToolbarSelectHeaderStyleDropdownButtonState
 
   Attribute<dynamic> _selectedItem = Attribute.header;
 
-  final _menuController = MenuController();
+  final _popoverKey = GlobalKey<AnimatedPopoverState>();
+  final GlobalKey _btnKey = GlobalKey();
+  OverlayEntry? _entry;
+
+
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_didChangeEditingValue);
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
     widget.controller.removeListener(_didChangeEditingValue);
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  double get keyboardInsetBottom {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    return MediaQueryData.fromView(view).viewInsets.bottom + kToolbarHeight;
+  }
+
+  double get maxHeightMenu {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    final mq = MediaQueryData.fromView(view);
+    return mq.size.height -
+        mq.viewInsets.bottom -
+        mq.viewPadding.bottom -
+        mq.viewPadding.top -
+        kToolbarHeight;
+  }
+
+  @override
+  void didChangeMetrics() {
+    _entry?.markNeedsBuild();
   }
 
   @override
@@ -93,6 +122,10 @@ class _QuillToolbarSelectHeaderStyleDropdownButtonState
         Attribute.header;
   }
 
+  TextStyle? _getHeaderAttributeStyle(Attribute<int?> attribute){
+      return widget.options.attributes?[attribute];
+  }
+
   String _label(Attribute<dynamic> value) {
     final label = switch (value) {
       Attribute.h1 => context.loc.heading1,
@@ -109,7 +142,7 @@ class _QuillToolbarSelectHeaderStyleDropdownButtonState
   }
 
   List<Attribute<int?>> get headerAttributes {
-    return widget.options.attributes ??
+    return widget.options.attributes!=null ? widget.options.attributes!.keys.toList() :
         [
           Attribute.h1,
           Attribute.h2,
@@ -118,9 +151,124 @@ class _QuillToolbarSelectHeaderStyleDropdownButtonState
         ];
   }
 
-  void _onPressed(Attribute<int?> e) {
-    setState(() => _selectedItem = e);
-    widget.controller.formatSelection(_selectedItem);
+  void _onPressed() {
+    _toggleMenu();
+    afterButtonPressed?.call();
+  }
+
+  void _toggleMenu() {
+    if (_entry != null) {
+      _dismissOverlayMenu();
+    } else {
+      _showOverlayMenu();
+    }
+  }
+
+  Future<void> _dismissOverlayMenu() async {
+    await _popoverKey.currentState?.reverse();
+    _entry!.remove();
+    _entry = null;
+  }
+
+  void _showOverlayMenu() {
+    final ctx = _btnKey.currentContext;
+    if (ctx == null) return;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached) return;
+
+    // métriques root (clavier + safe areas fiables)
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    final mq = MediaQueryData.fromView(view);
+    final screenW = mq.size.width;
+
+    // bouton
+    final btnSize = box.size;
+    final btnTopLeft = box.localToGlobal(Offset.zero);
+    final buttonTop = btnTopLeft.dy;
+    final buttonLeft = btnTopLeft.dx;
+    final buttonRight = buttonLeft + btnSize.width;
+    final buttonCenterX = buttonLeft + btnSize.width / 2;
+
+    // params
+    const gap = 0;
+    const margin = 8.0;
+    const maxMenuWidth = 280.0;
+
+    // alignement adaptatif G/D
+    final alignLeft = buttonCenterX < (screenW / 2);
+
+    _entry = OverlayEntry(
+      builder: (overlayCtx) {
+        // relire métriques à chaque build (rotation, clavier…)
+        final v = WidgetsBinding.instance.platformDispatcher.views.first;
+        final liveMQ = MediaQueryData.fromView(v);
+        final screenWLive = liveMQ.size.width;
+        final screenHLive = liveMQ.size.height;
+        final topSafeLive = liveMQ.viewPadding.top;
+
+        final availableAboveLive =
+            (buttonTop - topSafeLive - gap).clamp(0.0, double.infinity);
+        final targetWidthLive =
+            math.min(maxMenuWidth, screenWLive - margin * 2);
+        final bottomLive = screenHLive - (buttonTop - gap);
+
+        // re-clamp G/D
+        double? leftLive, rightLive;
+        if (alignLeft) {
+          leftLive =
+              buttonLeft.clamp(margin, screenWLive - margin - targetWidthLive);
+        } else {
+          rightLive = (screenWLive - buttonRight)
+              .clamp(margin, screenWLive - margin - targetWidthLive);
+        }
+
+        return Stack(
+          children: [
+            // backdrop pour fermer (ne capte pas le focus)
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _dismissOverlayMenu,
+                onVerticalDragStart: (details) {
+                  _dismissOverlayMenu();
+                },
+                child: Container(
+                  color: Colors.transparent,
+                ),
+              ),
+            ),
+            Positioned(
+              left: leftLive,
+              right: rightLive,
+              bottom: bottomLive,
+              child: AnimatedPopover(
+                key: _popoverKey,
+                maxWidth: targetWidthLive,
+                maxHeight: availableAboveLive,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: headerAttributes
+                      .map(
+                        (e) => ListTile(
+                          dense: true,
+                          title:
+                              Text(_label(e), overflow: TextOverflow.ellipsis, style:_getHeaderAttributeStyle(e) ?? Theme.of(context).textTheme.bodyLarge),
+                          onTap: () {
+                            setState(() => _selectedItem = e);
+                            widget.controller.formatSelection(_selectedItem);
+                            _toggleMenu();
+                          },
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    Overlay.of(context, rootOverlay: true).insert(_entry!);
   }
 
   @override
@@ -140,62 +288,37 @@ class _QuillToolbarSelectHeaderStyleDropdownButtonState
       );
     }
 
-    return MenuAnchor(
-      controller: _menuController,
-      menuChildren: headerAttributes
-          .map(
-            (e) => MenuItemButton(
-              onPressed: () {
-                _onPressed(e);
-              },
-              child: Text(_label(e)),
-            ),
-          )
-          .toList(),
-      child: Builder(
-        builder: (context) {
-          final isMaterial3 = Theme.of(context).useMaterial3;
-          final child = Row(
-            mainAxisSize: MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _label(_selectedItem),
-                style: widget.options.textStyle ??
-                    TextStyle(
-                      fontSize: iconSize / 1.15,
-                    ),
+    final isMaterial3 = Theme.of(context).useMaterial3;
+    final child = Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          _label(_selectedItem),
+          style: widget.options.textStyle ??
+              TextStyle(
+                fontSize: iconSize / 1.15,
               ),
-              Icon(
-                Icons.arrow_drop_down,
-                size: iconSize * iconButtonFactor,
-              ),
-            ],
-          );
-          if (!isMaterial3) {
-            return RawMaterialButton(
-              onPressed: _onDropdownButtonPressed,
-              child: child,
-            );
-          }
-          return QuillToolbarIconButton(
-            onPressed: _onDropdownButtonPressed,
-            icon: child,
-            isSelected: false,
-            iconTheme: iconTheme,
-            tooltip: tooltip,
-          );
-        },
-      ),
+        ),
+        Icon(
+          Icons.arrow_drop_down,
+          size: iconSize * iconButtonFactor,
+        ),
+      ],
     );
-  }
-
-  void _onDropdownButtonPressed() {
-    if (_menuController.isOpen) {
-      _menuController.close();
-    } else {
-      _menuController.open();
+    if (!isMaterial3) {
+      return RawMaterialButton(
+        onPressed: _onPressed,
+        child: child,
+      );
     }
-    afterButtonPressed?.call();
+    return QuillToolbarIconButton(
+      key: _btnKey,
+      onPressed: _onPressed,
+      icon: child,
+      isSelected: false,
+      iconTheme: iconTheme,
+      tooltip: tooltip,
+    );
   }
 }

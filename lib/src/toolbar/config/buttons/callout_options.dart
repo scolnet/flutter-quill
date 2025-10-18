@@ -4,10 +4,6 @@ import '../../../document/attribute.dart';
 import '../base_button_options.dart';
 
 class CalloutItem {
-  final String? value;
-  final String label;
-  final IconData? icon;
-  final Color? accent;
 
   const CalloutItem({
     required this.label, 
@@ -15,6 +11,11 @@ class CalloutItem {
     this.icon,
     this.accent,
   });
+  
+  final String? value;
+  final String label;
+  final IconData? icon;
+  final Color? accent;
 
 }
 

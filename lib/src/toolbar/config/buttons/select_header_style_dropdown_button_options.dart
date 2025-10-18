@@ -48,14 +48,14 @@ class QuillToolbarSelectHeaderStyleDropdownButtonOptions
   ///   Attribute.header,
   /// ]
   /// ```
-  final List<Attribute<int?>>? attributes;
+  final Map<Attribute<int?>, TextStyle?>? attributes;
   final double? width;
 
   final String? defaultDisplayText;
 
   QuillToolbarSelectHeaderStyleDropdownButtonOptions copyWith({
     ValueChanged<String>? onSelected,
-    List<Attribute<int>>? attributes,
+    Map<Attribute<int?>, TextStyle?>? attributes,
     TextStyle? style,
     double? iconSize,
     double? iconButtonFactor,

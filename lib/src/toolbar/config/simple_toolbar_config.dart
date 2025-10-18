@@ -11,6 +11,7 @@ import '../theme/quill_dialog_theme.dart';
 import '../theme/quill_icon_theme.dart';
 import 'simple_toolbar_button_options.dart';
 
+export '../buttons/animated_popover.dart';
 export '../buttons/search/search_dialog.dart';
 export 'base_button_options.dart';
 export 'buttons/clear_format_options.dart';

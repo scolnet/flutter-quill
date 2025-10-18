@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 
@@ -31,17 +33,39 @@ class QuillToolbarCalloutButtonState extends QuillToolbarBaseButtonState<
     QuillToolbarCalloutButton,
     QuillToolbarCalloutButtonOptions,
     QuillToolbarCalloutButtonExtraOptions,
-    String> {
+    String> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
     widget.controller.addListener(_didChangeEditingValue);
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.controller.removeListener(_didChangeEditingValue);
     super.dispose();
+  }
+
+  double get keyboardInsetBottom {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    return MediaQueryData.fromView(view).viewInsets.bottom + kToolbarHeight;
+  }
+
+  double get maxHeightMenu {
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    final mq = MediaQueryData.fromView(view);
+    return mq.size.height -
+        mq.viewInsets.bottom -
+        mq.viewPadding.bottom -
+        mq.viewPadding.top -
+        kToolbarHeight;
+  }
+
+  @override
+  void didChangeMetrics() {
+    _entry?.markNeedsBuild();
   }
 
   @override
@@ -86,6 +110,10 @@ class QuillToolbarCalloutButtonState extends QuillToolbarBaseButtonState<
     return items;
   }
 
+  final _popoverKey = GlobalKey<AnimatedPopoverState>();
+  final GlobalKey _btnKey = GlobalKey();
+  OverlayEntry? _entry;
+
   Color? _currentColor;
 
   CalloutItem? _getCurrentCallout(String value) {
@@ -99,15 +127,138 @@ class QuillToolbarCalloutButtonState extends QuillToolbarBaseButtonState<
   IconData get defaultIconData => Icons.crop_square_outlined;
 
   void _onPressed() {
-    if (_menuController.isOpen) {
-      _menuController.close();
-    } else {
-      _menuController.open();
-    }
+    _toggleMenu();
     afterButtonPressed?.call();
   }
 
-  final _menuController = MenuController();
+  void _toggleMenu() {
+    if (_entry != null) {
+      _dismissOverlayMenu();
+    } else {
+      _showOverlayMenu();
+    }
+  }
+
+  Future<void> _dismissOverlayMenu() async {
+    await _popoverKey.currentState?.reverse();
+    _entry!.remove();
+    _entry = null;
+  }
+
+  void _showOverlayMenu() {
+    final ctx = _btnKey.currentContext;
+    if (ctx == null) return;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null || !box.attached) return;
+
+    // métriques root (clavier + safe areas fiables)
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    final mq = MediaQueryData.fromView(view);
+    final screenW = mq.size.width;
+
+    // bouton
+    final btnSize = box.size;
+    final btnTopLeft = box.localToGlobal(Offset.zero);
+    final buttonTop = btnTopLeft.dy;
+    final buttonLeft = btnTopLeft.dx;
+    final buttonRight = buttonLeft + btnSize.width;
+    final buttonCenterX = buttonLeft + btnSize.width / 2;
+
+    // params
+    const gap = 0;
+    const margin = 8.0;
+    const maxMenuWidth = 280.0;
+
+    // alignement adaptatif G/D
+    final alignLeft = buttonCenterX < (screenW / 2);
+
+    _entry = OverlayEntry(
+      builder: (overlayCtx) {
+        // relire métriques à chaque build (rotation, clavier…)
+        final v = WidgetsBinding.instance.platformDispatcher.views.first;
+        final liveMQ = MediaQueryData.fromView(v);
+        final screenWLive = liveMQ.size.width;
+        final screenHLive = liveMQ.size.height;
+        final topSafeLive = liveMQ.viewPadding.top;
+
+        final availableAboveLive =
+            (buttonTop - topSafeLive - gap).clamp(0.0, double.infinity);
+        final targetWidthLive =
+            math.min(maxMenuWidth, screenWLive - margin * 2);
+        final bottomLive = screenHLive - (buttonTop - gap);
+
+        // re-clamp G/D
+        double? leftLive, rightLive;
+        if (alignLeft) {
+          leftLive =
+              buttonLeft.clamp(margin, screenWLive - margin - targetWidthLive);
+        } else {
+          rightLive = (screenWLive - buttonRight)
+              .clamp(margin, screenWLive - margin - targetWidthLive);
+        }
+        final itemStyle =
+            Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
+        return Stack(
+          children: [
+            // backdrop pour fermer (ne capte pas le focus)
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _dismissOverlayMenu,
+                onVerticalDragStart: (details) {
+                  _dismissOverlayMenu();
+                },
+                child: Container(
+                  color: Colors.transparent,
+                ),
+              ),
+            ),
+            Positioned(
+              left: leftLive,
+              right: rightLive,
+              bottom: bottomLive,
+              child: AnimatedPopover(
+                key: _popoverKey,
+                maxWidth: targetWidthLive,
+                maxHeight: availableAboveLive,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final item in _items)
+                      ListTile(
+                        dense: true,
+                        leading: item.icon != null
+                            ? Icon(item.icon, color: item.accent, size: 20)
+                            : null,
+                        title: Text(
+                          item.label,
+                          overflow: TextOverflow.ellipsis,
+                          style: item.value == null
+                              ? itemStyle.copyWith(
+                                  color: options.defaultItemColor)
+                              : itemStyle.copyWith(color: item.accent),
+                        ),
+                        onTap: () {
+                          controller.formatSelection(
+                            Attribute.fromKeyValue(
+                              Attribute.callout.key,
+                              item.value,
+                            ),
+                          );
+                          options.onSelected?.call(item.value);
+                          _toggleMenu();
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    Overlay.of(context, rootOverlay: true).insert(_entry!);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -124,6 +275,7 @@ class QuillToolbarCalloutButtonState extends QuillToolbarBaseButtonState<
         ),
       );
     }
+
     return UtilityWidgets.maybeWidget(
       enabled: tooltip.isNotEmpty || options.overrideTooltipByCallout,
       wrapper: (child) {
@@ -135,63 +287,12 @@ class QuillToolbarCalloutButtonState extends QuillToolbarBaseButtonState<
         }
         return Tooltip(message: effectiveTooltip, child: child);
       },
-      child: MenuAnchor(
-        controller: _menuController,
-        menuChildren: [
-          for (CalloutItem item in _items)
-            MenuItemButton(
-              key: ValueKey(item.value),
-              onPressed: () {
-                final newValue = item.value;
-                final keyName = item.label;
-                setState(() {
-                  if (newValue != null) {
-                    currentValue = keyName;
-                    _currentColor = item.accent;
-                  } else {
-                    currentValue = _defaultDisplayText;
-                    _currentColor = null;
-                  }
-
-                  controller.formatSelection(
-                    Attribute.fromKeyValue(
-                      Attribute.callout.key,
-                      newValue,
-                    ),
-                  );
-                  options.onSelected?.call(newValue);
-                });
-              },
-              leadingIcon: item.icon != null
-                  ? Icon(item.icon, color: item.accent, size: 20)
-                  : null,
-              child: Text(
-                item.label,
-                style: TextStyle(
-                  color: item.value == null
-                      ? options.defaultItemColor
-                      : item.accent,
-                ),
-              ),
-            ),
-        ],
-        child: Builder(
-          builder: (context) {
-            final isMaterial3 = Theme.of(context).useMaterial3;
-            if (!isMaterial3) {
-              return RawMaterialButton(
-                onPressed: _onPressed,
-                child: _buildContent(context),
-              );
-            }
-            return QuillToolbarIconButton(
-              isSelected: false,
-              iconTheme: iconTheme,
-              onPressed: _onPressed,
-              icon: _buildContent(context),
-            );
-          },
-        ),
+      child: QuillToolbarIconButton(
+        key: _btnKey,
+        isSelected: false,
+        iconTheme: iconTheme,
+        onPressed: _onPressed,
+        icon: _buildContent(context),
       ),
     );
   }
