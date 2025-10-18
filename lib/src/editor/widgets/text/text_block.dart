@@ -266,17 +266,9 @@ class EditableTextBlock extends StatelessWidget {
         defaultStyles.lists?.numberPointWidthBuilder ??
             TextBlockUtils.defaultNumberPointWidthBuilder;
 
+    
     // Of the color button
-    final fontColor =
-        line.toDelta().operations.first.attributes?[Attribute.color.key] != null
-            ? hexToColor(
-                line
-                    .toDelta()
-                    .operations
-                    .first
-                    .attributes?[Attribute.color.key],
-              )
-            : null;
+    final fontColor = defaultStyles.paragraph?.style.color;
 
     // Of the size button
     final size =
@@ -605,22 +597,110 @@ class RenderEditableTextBlock extends RenderEditableContainerBox
   }
 
   void _paintDecoration(PaintingContext context, Offset offset) {
-    _painter ??= _decoration.createBoxPainter(markNeedsPaint);
+  final Decoration dec = _decoration;
 
-    // resolvedPadding inclut savedPadding + contentPaddingEffectif
-    final decorationPadding = resolvedPadding! - _contentPaddingEffective;
-    final filledConfiguration =
-        configuration.copyWith(size: decorationPadding.deflateSize(size));
-    final decorationOffset =
-        offset.translate(decorationPadding.left, decorationPadding.top);
+  // ---- Détecte: BoxDecoration avec borderRadius et SEULEMENT une bordure à gauche ----
+  Color? leftColor;
+  double leftWidth = 0;
+  BorderRadius? radius;
+  bool onlyLeftWithRadius = false;
 
-    final save = context.canvas.getSaveCount();
-    _painter!.paint(context.canvas, decorationOffset, filledConfiguration);
-    if (save != context.canvas.getSaveCount()) {
-      throw StateError('Decoration painter save/restore mismatch.');
+  if (dec is BoxDecoration && dec.shape == BoxShape.rectangle) {
+    radius = dec.borderRadius?.resolve(textDirection);
+    final b = dec.border;
+
+    bool sidePresent(BorderSide s) => s.style != BorderStyle.none && s.width > 0;
+
+    if (b is Border) {
+      final hasL = sidePresent(b.left);
+      final hasT = sidePresent(b.top);
+      final hasR = sidePresent(b.right);
+      final hasB = sidePresent(b.bottom);
+      if (radius != null && hasL && !(hasT || hasR || hasB)) {
+        onlyLeftWithRadius = true;
+        leftColor = b.left.color;
+        leftWidth = b.left.width;
+      }
+    } else if (b is BorderDirectional) {
+      // start=end en fonction de la direction
+      final isLtr = textDirection == TextDirection.ltr;
+      final leftSide  = isLtr ? b.start : b.end;
+      final otherSide = isLtr ? b.end   : b.start;
+
+      final hasL = sidePresent(leftSide);
+      final hasT = sidePresent(b.top);
+      final hasR = sidePresent(otherSide);
+      final hasB = sidePresent(b.bottom);
+      if (radius != null && hasL && !(hasT || hasR || hasB)) {
+        onlyLeftWithRadius = true;
+        leftColor = leftSide.color;
+        leftWidth = leftSide.width;
+      }
     }
-    if (decoration.isComplex) context.setIsComplexHint();
   }
+
+  // ---- Choisit/actualise le painter de base ----
+  // Si onlyLeftWithRadius => on peint le fond sans radius/border (on les refait nous-mêmes).
+  final Decoration baseDeco = (onlyLeftWithRadius && _decoration is BoxDecoration)
+      ? (dec as BoxDecoration).copyWith(
+          borderRadius: null,
+          border: const Border(), // supprime toute bordure
+        )
+      : _decoration;
+
+  // (Re)crée le painter si nécessaire
+  _painter?.dispose();
+  _painter = baseDeco.createBoxPainter(markNeedsPaint);
+
+  // ---- Géométrie du bloc décoré ----
+  final decorationPadding = resolvedPadding! - _contentPaddingEffective;
+  final Size decoSize = decorationPadding.deflateSize(size);
+  final Offset decoOffset =
+      offset.translate(decorationPadding.left, decorationPadding.top);
+  final filledConfiguration = configuration.copyWith(size: decoSize);
+
+  // ---- Peint la déco (fond/ombre/etc.) ----
+  final save = context.canvas.getSaveCount();
+  _painter!.paint(context.canvas, decoOffset, filledConfiguration);
+  if (save != context.canvas.getSaveCount()) {
+    throw StateError('Decoration painter save/restore mismatch.');
+  }
+  if (decoration.isComplex) context.setIsComplexHint();
+
+  // ---- Barre gauche "fill" si nécessaire (zéro artefact) ----
+  if (onlyLeftWithRadius && leftColor != null && leftWidth > 0) {
+    final Canvas canvas = context.canvas;
+
+    // Snap DPR pour éviter les demi-pixels
+    final dpr = _configuration.devicePixelRatio ?? 1.0;
+    double snap(double v) => (v * dpr).round() / dpr;
+
+    final double barW = snap(leftWidth);
+    final Rect barRect = Rect.fromLTWH(
+      snap(decoOffset.dx),
+      snap(decoOffset.dy),
+      barW,
+      snap(decoSize.height),
+    );
+
+    final Paint p = Paint()
+      ..color = leftColor
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+
+    if (radius != null) {
+      // arrondi seulement TL/BL pour épouser le conteneur
+      final rrect = RRect.fromRectAndCorners(
+        barRect,
+        topLeft: radius.topLeft,
+        bottomLeft: radius.bottomLeft,
+      );
+      canvas.drawRRect(rrect, p);
+    } else {
+      canvas.drawRect(barRect, p);
+    }
+  }
+}
 
   void _paintHeader(PaintingContext context, Offset offset) {
     // Rien à peindre si pas d’icône ET pas de texte
@@ -922,8 +1002,6 @@ class _EditableBlock extends MultiChildRenderObjectWidget {
     this.headerText,
     this.headerTextStyle,
     this.headerPadding,
-    this.headerAccent,
-    this.headerAccentBarWidth,
     this.headerIcon,
     this.headerIconColor,
     this.headerIconGap,
@@ -939,8 +1017,6 @@ class _EditableBlock extends MultiChildRenderObjectWidget {
   final String? headerText;
   final TextStyle? headerTextStyle;
   final EdgeInsets? headerPadding;
-  final Color? headerAccent;
-  final double? headerAccentBarWidth;
   final IconData? headerIcon;
   final Color? headerIconColor;
   final double? headerIconGap;
