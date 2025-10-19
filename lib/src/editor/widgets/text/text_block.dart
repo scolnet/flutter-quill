@@ -9,7 +9,6 @@ import '../../../delta/delta_diff.dart';
 import '../../../document/attribute.dart';
 import '../../../document/nodes/block.dart';
 import '../../../document/nodes/line.dart';
-import '../../../editor_toolbar_shared/color.dart';
 import '../../config/block_decoration_resolver.dart';
 import '../../config/editor_config.dart';
 import '../../editor.dart';
@@ -643,7 +642,6 @@ class RenderEditableTextBlock extends RenderEditableContainerBox
   // Si onlyLeftWithRadius => on peint le fond sans radius/border (on les refait nous-mêmes).
   final Decoration baseDeco = (onlyLeftWithRadius && _decoration is BoxDecoration)
       ? (dec as BoxDecoration).copyWith(
-          borderRadius: null,
           border: const Border(), // supprime toute bordure
         )
       : _decoration;
