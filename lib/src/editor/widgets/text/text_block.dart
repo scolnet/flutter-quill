@@ -726,14 +726,16 @@ class RenderEditableTextBlock extends RenderEditableContainerBox
     // 1) Prépare le painter du titre (si texte)
     TextPainter? titlePainter;
     double lineHeight;
-    final double fs = _headerTextStyle.fontSize ?? 16;
+    final fs = _headerTextStyle.fontSize ?? 16;
     if (_headerText != null && _headerText!.isNotEmpty) {
+      final textMaxW = (maxHeaderW - (_headerIcon != null ? (fs + _headerIconGap) : 0))
+          .clamp(0.0, double.infinity);
       titlePainter = TextPainter(
         text: TextSpan(text: _headerText!, style: _headerTextStyle),
         textDirection: TextDirection.ltr,
         maxLines: 1,
         ellipsis: '…',
-      )..layout(minWidth: 0, maxWidth: maxHeaderW);
+      )..layout(minWidth: 0, maxWidth: textMaxW);
       lineHeight = titlePainter.height;
     } else {
       // pas de texte : hauteur de ligne “théorique” basée sur la font
