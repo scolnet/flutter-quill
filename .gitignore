@@ -21,6 +21,8 @@
 # is commented out by default.
 .vscode/
 
+CLAUDE*
+
 # Flutter/Dart/Pub related
 **/doc/api/
 .dart_tool/
