@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [11.6.0] - 2026-09-16
+
 ### Added
 
 - Added `QuillEditorConfig.showCodeBlockLineNumbers` (defaults to `true`). When set to `false`, code-block line numbers are hidden and the left gutter shrinks to match the code block's right indent, giving the block symmetric horizontal padding instead of a flush-left edge. `customLeadingBlockBuilder` remains available for finer control and still takes precedence when both are set.
@@ -226,7 +228,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Apple-specific font dependency for subscript and superscript functionality from the example.
 - **BREAKING**: The [`super_clipboard`](https://pub.dev/packages/super_clipboard) plugin, To restore legacy behavior for `super_clipboard`, use [`flutter_quill_extensions`](https://pub.dev/packages/flutter_quill_extensions) package and `FlutterQuillExtensions.useSuperClipboardPlugin()`.
 
-[unreleased]: https://github.com/singerdmx/flutter-quill/compare/v11.5.1...HEAD
+[unreleased]: https://github.com/singerdmx/flutter-quill/compare/v11.6.0...HEAD
+[11.6.0]: https://github.com/singerdmx/flutter-quill/compare/v10.0.0...v11.6.0
 [11.5.1]: https://github.com/singerdmx/flutter-quill/compare/v10.0.0...v11.5.1
 [11.5.0]: https://github.com/singerdmx/flutter-quill/compare/v10.0.0...v11.5.0
 [11.4.2]: https://github.com/singerdmx/flutter-quill/compare/v10.0.0...v11.4.2
