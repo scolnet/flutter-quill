@@ -9,16 +9,20 @@ import '../../base_button/base_value_button.dart';
 import '../../config/simple_toolbar_config.dart';
 import '../quill_icon_button.dart';
 
-typedef QuillToolbarSelectHeaderStyleDropdownBaseButton
-    = QuillToolbarBaseButton<QuillToolbarSelectHeaderStyleDropdownButtonOptions,
-        QuillToolbarSelectHeaderStyleDropdownButtonExtraOptions>;
+typedef QuillToolbarSelectHeaderStyleDropdownBaseButton =
+    QuillToolbarBaseButton<
+      QuillToolbarSelectHeaderStyleDropdownButtonOptions,
+      QuillToolbarSelectHeaderStyleDropdownButtonExtraOptions
+    >;
 
 typedef QuillToolbarSelectHeaderStyleDropdownBaseButtonsState<
-        W extends QuillToolbarSelectHeaderStyleDropdownButton>
-    = QuillToolbarCommonButtonState<
-        W,
-        QuillToolbarSelectHeaderStyleDropdownButtonOptions,
-        QuillToolbarSelectHeaderStyleDropdownButtonExtraOptions>;
+  W extends QuillToolbarSelectHeaderStyleDropdownButton
+> =
+    QuillToolbarCommonButtonState<
+      W,
+      QuillToolbarSelectHeaderStyleDropdownButtonOptions,
+      QuillToolbarSelectHeaderStyleDropdownButtonExtraOptions
+    >;
 
 class QuillToolbarSelectHeaderStyleDropdownButton
     extends QuillToolbarSelectHeaderStyleDropdownBaseButton {
@@ -89,7 +93,8 @@ class _QuillToolbarSelectHeaderStyleDropdownButtonState
 
   @override
   void didUpdateWidget(
-      covariant QuillToolbarSelectHeaderStyleDropdownButton oldWidget) {
+    covariant QuillToolbarSelectHeaderStyleDropdownButton oldWidget,
+  ) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller == widget.controller) {
       return;
@@ -110,12 +115,6 @@ class _QuillToolbarSelectHeaderStyleDropdownButtonState
   }
 
   Attribute<dynamic> _getHeaderValue() {
-    final attr = widget.controller.toolbarButtonToggler[Attribute.header.key];
-    if (attr != null) {
-      // checkbox tapping causes controller.selection to go to offset 0
-      widget.controller.toolbarButtonToggler.remove(Attribute.header.key);
-      return attr;
-    }
     return widget.controller
             .getSelectionStyle()
             .attributes[Attribute.header.key] ??

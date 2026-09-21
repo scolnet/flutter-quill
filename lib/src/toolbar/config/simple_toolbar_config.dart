@@ -130,11 +130,9 @@ class QuillSimpleToolbarConfig {
     this.color,
     this.sectionDividerColor,
     this.sectionDividerSpace,
-
-    /// The change only applies if [multiRowsDisplay] is `false`
-    double? toolbarSize,
+    this._toolbarSize,
     this.toolbarRunSpacing = 4,
-  }) : _toolbarSize = toolbarSize;
+  });
 
   final double? _toolbarSize;
 
