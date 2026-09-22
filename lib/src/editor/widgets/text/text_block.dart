@@ -9,7 +9,6 @@ import '../../../delta/delta_diff.dart';
 import '../../../document/attribute.dart';
 import '../../../document/nodes/block.dart';
 import '../../../document/nodes/line.dart';
-import '../../../editor_toolbar_shared/color.dart';
 import '../../config/block_decoration_resolver.dart';
 import '../../config/editor_config.dart';
 import '../../editor.dart';
@@ -301,12 +300,7 @@ class EditableTextBlock extends StatelessWidget {
 
     
     // Of the color button
-    final fontColor =
-        line.toDelta().operations.first.attributes?[Attribute.color.key] != null
-        ? hexToColor(
-            line.toDelta().operations.first.attributes?[Attribute.color.key],
-          )
-        : null;
+    final fontColor = defaultStyles.paragraph?.style.color;
 
     // Of the size button
     final size =
